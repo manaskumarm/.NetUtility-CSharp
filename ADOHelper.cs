@@ -17,10 +17,10 @@
         /// <summary>
         /// Constructor using global connection string.
         /// </summary>
-        public SqlADOHelper(IAwsManagerReadKey awsManagerReadKey)
+        public SqlADOHelper()
         {
             var configuration = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("appsettings.json", optional: true, reloadOnChange: true).Build();
-            _connString = "Server=90FDGK3\\SQLEXPRESS;Initial Catalog=db-carrierappshub-dev;Persist Security Info=False;MultipleActiveResultSets=False;Encrypt=False;Trusted_Connection=True;TrustServerCertificate=False;Max Pool Size=600;Pooling=true;Connection Timeout=30";//awsManagerReadKey.AppConfigKeys[configuration["ConnectionStrings:UM_ADOConnection"]];
+            _connString = "Server=local\\SQLEXPRESS;Initial Catalog=db_users;Persist Security Info=False;MultipleActiveResultSets=False;Encrypt=False;Trusted_Connection=True;TrustServerCertificate=False;Max Pool Size=600;Pooling=true;Connection Timeout=30";
         }
 
         /// <summary>
