@@ -20,7 +20,7 @@
         public SqlADOHelper()
         {
             var configuration = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("appsettings.json", optional: true, reloadOnChange: true).Build();
-            _connString = "Server=local\\SQLEXPRESS;Initial Catalog=db_users;Persist Security Info=False;MultipleActiveResultSets=False;Encrypt=False;Trusted_Connection=True;TrustServerCertificate=False;Max Pool Size=600;Pooling=true;Connection Timeout=30";
+            _connString = configuration["connectionstring"]; //it reads from appsettings.jon file
         }
 
         /// <summary>
