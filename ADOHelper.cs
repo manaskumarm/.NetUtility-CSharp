@@ -1,4 +1,16 @@
-/// <summary>
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Configuration;
+using Microsoft.Extensions.Configuration;
+using System.IO;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace MyProject.Helper
+{
+    /// <summary>
     /// An ADO.NET helper class
     /// </summary>
     public class SqlADOHelper : IDisposable
@@ -419,3 +431,4 @@
 
         #endregion
     }
+}
