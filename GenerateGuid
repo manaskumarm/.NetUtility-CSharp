@@ -1,0 +1,7 @@
+byte[] key = Encoding.ASCII.GetBytes("mykey");
+HMACMD5 hmac = new HMACMD5(key);
+// Encode the string into a byte array
+byte[] data = Encoding.ASCII.GetBytes("ManasKumarm@gmail.com");
+// Compute the hash of the data
+byte[] hash2 = hmac.ComputeHash(data);
+Guid result2 = new Guid(hash2);
