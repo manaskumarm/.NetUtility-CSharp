@@ -1,4 +1,5 @@
 // Dapper is an open-source object-relational mapping (ORM) library for .NET and .NET Core applications. The library allows developers quickly and easily access data from databases without the need to write tedious code.
+// ADO.NET connections via extension methods on your DbConnection instance. Dapper Plus is mostly used for bulk operation like insert, update and delete etc.
 // It supports following databases with package
 // SQL Server
 // PostgreSQL -> Npgsql 
