@@ -78,18 +78,7 @@ namespace Data.Access
       }   
     }
 
-    public void ScalarValues()
-    {
-      using (var connection = new SqlConnection(connectionString))
-      {
-          var sql = "SELECT COUNT(*) FROM Products";
-          var count = connection.ExecuteScalar(sql);
-      	
-          Console.WriteLine($"Total products: {count}");
-      }     
-    }
-
-    public void ScalarValues()
+    public void DataReader()
     {
       using(var connection = new SqlConnection(connectionString))
       {
