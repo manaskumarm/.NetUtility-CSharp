@@ -1,0 +1,337 @@
+To implement the CQRS pattern using MediatR in a .NET Core Web API while adhering to Clean Architecture, we'll structure the application into distinct layers:
+
+API Layer: Handles HTTP requests and responses.
+
+Application Layer: Contains business logic, including commands, queries, and handlers.
+
+Domain Layer: Defines core entities and interfaces.
+
+Infrastructure Layer: Implements data access and external service integrations.
+
+Tests Layer: Contains unit tests for the application.
+
+Step 1: Install Necessary Packages
+
+dotnet add package MediatR
+dotnet add package MediatR.Extensions.Microsoft.DependencyInjection
+dotnet add package Microsoft.EntityFrameworkCore
+dotnet add package Microsoft.EntityFrameworkCore.InMemory
+dotnet add package FluentValidation
+dotnet add package FluentValidation.AspNetCore
+dotnet add package Moq
+dotnet add package xunit
+dotnet add package Microsoft.AspNetCore.Mvc.Testing
+
+Step 2: Define the Domain Layer
+
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+}
+
+Interfaces
+
+public interface IProductRepository
+{
+    Task<Product> GetByIdAsync(int id);
+    Task<Product> AddAsync(Product product);
+}
+
+Step 3: Implement the Infrastructure Layer
+
+DbContext
+
+public class AppDbContext : DbContext
+{
+    public DbSet<Product> Products { get; set; }
+
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+}
+
+Repository implementation
+
+public class ProductRepository : IProductRepository
+{
+    private readonly AppDbContext _context;
+
+    public ProductRepository(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<Product> GetByIdAsync(int id)
+    {
+        return await _context.Products.FindAsync(id);
+    }
+
+    public async Task<Product> AddAsync(Product product)
+    {
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
+        return product;
+    }
+}
+
+Step 4: Define the Application Layer
+Commands and Handlers
+
+CreateProductCommand
+public class CreateProductCommand : IRequest<Product>
+{
+    public string Name { get; set; }
+    public decimal Price { get; set; }
+}
+
+CreateProductCommandHandler
+public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, Product>
+{
+    private readonly IProductRepository _repository;
+
+    public CreateProductCommandHandler(IProductRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Product> Handle(CreateProductCommand request, CancellationToken cancellationToken)
+    {
+        var product = new Product
+        {
+            Name = request.Name,
+            Price = request.Price
+        };
+        return await _repository.AddAsync(product);
+    }
+}
+
+GetProductByIdQuery
+public class GetProductByIdQuery : IRequest<Product>
+{
+    public int Id { get; set; }
+}
+
+GetProductByIdQueryHandler
+public class GetProductByIdQueryHandler : IRequestHandler<GetProductByIdQuery, Product>
+{
+    private readonly IProductRepository _repository;
+
+    public GetProductByIdQueryHandler(IProductRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<Product> Handle(GetProductByIdQuery request, CancellationToken cancellationToken)
+    {
+        return await _repository.GetByIdAsync(request.Id);
+    }
+}
+
+Step 5: Configure the API Layer
+
+public class ApiResponse<T>
+{
+    public T Data { get; set; }
+    public string Message { get; set; }
+    public bool Success { get; set; }
+}
+
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using System.Threading.Tasks;
+using YourApp.Application.Commands;
+using YourApp.Application.Queries;
+using YourApp.Domain.Entities;
+
+namespace YourApp.API.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ProductsController : ControllerBase
+    {
+        private readonly IMediator _mediator;
+
+        public ProductsController(IMediator mediator)
+        {
+            _mediator = mediator;
+        }
+
+        [HttpPost]
+		public async Task<ActionResult<ApiResponse<Product>>> Create([FromBody] CreateProductCommand command)
+		{
+			var product = await _mediator.Send(command);
+			var response = new ApiResponse<Product>
+			{
+				Data = product,
+				Message = "Product created successfully.",
+				Success = true
+			};
+			return CreatedAtAction(nameof(GetById), new { id = response.Data.Id }, response);
+		}
+
+		[HttpGet("{id}")]
+		public async Task<ActionResult<ApiResponse<Product>>> GetById(int id)
+		{
+			var product = await _mediator.Send(new GetProductByIdQuery { Id = id });
+			if (product == null)
+			{
+				var response = new ApiResponse<Product>
+				{
+					Message = "Product not found.",
+					Success = false
+				};
+				return NotFound(response);
+			}
+			var successResponse = new ApiResponse<Product>
+			{
+				Data = product,
+				Message = "Product retrieved successfully.",
+				Success = true
+			};
+			return Ok(successResponse);
+		}
+
+    }
+}
+
+Step6: Implement Startup.cs
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseInMemoryDatabase("ProductsDb"));
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddMediatR(Assembly.GetExecutingAssembly());
+builder.Services.AddControllers()
+    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssemblyContaining<CreateProductCommandValidator>());
+
+var app = builder.Build();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+
+Step7: Implement Exception handling
+public class ProductNotFoundException : Exception
+{
+    public ProductNotFoundException(int id)
+        : base($"Product with ID {id} not found.") { }
+}
+
+public class ExceptionHandlingMiddleware
+{
+    private readonly RequestDelegate _next;
+
+    public ExceptionHandlingMiddleware(RequestDelegate next)
+    {
+        _next = next;
+    }
+
+    public async Task InvokeAsync(HttpContext httpContext)
+    {
+        try
+        {
+            await _next(httpContext);
+        }
+        catch (ProductNotFoundException ex)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+            await httpContext.Response.WriteAsync(ex.Message);
+        }
+        catch (Exception)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            await httpContext.Response.WriteAsync("An unexpected error occurred.");
+        }
+    }
+}
+
+Register Middleware
+var app = builder.Build();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+Step 8: Implement Unit Tests
+public class ProductTests
+{
+    private readonly Mock<IProductRepository> _mockRepo;
+    private readonly IMediator _mediator;
+
+    public ProductTests()
+    {
+        _mockRepo = new Mock<IProductRepository>();
+        var services = new ServiceCollection();
+        services.AddMediatR(typeof(CreateProductCommandHandler).Assembly);
+        services.AddScoped<IProductRepository>(_ => _mockRepo.Object);
+        var provider = services.BuildServiceProvider();
+        _mediator = provider.GetRequiredService<IMediator>();
+    }
+
+    [Fact]
+    public async Task CreateProduct_ShouldReturnProduct()
+    {
+        // Arrange
+        var command = new CreateProductCommand { Name = "Test Product", Price = 100 };
+        _mockRepo.Setup(repo => repo.AddAsync(It.IsAny<Product>())).ReturnsAsync(new Product { Id = 1, Name = "Test Product", Price = 100 });
+
+        // Act
+        var result = await _mediator.Send(command);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Test Product", result.Name);
+    }
+
+    [Fact]
+    public async Task GetProductById_ShouldReturnProduct()
+    {
+        // Arrange
+        var query = new GetProductByIdQuery { Id = 1 };
+        _mockRepo.Setup(repo => repo.GetByIdAsync(1)).ReturnsAsync(new Product { Id = 1, Name = "Test Product", Price = 100 });
+
+        // Act
+        var result = await _mediator.Send(query);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(1, result.Id);
+    }
+}
+
+
+Program.cs Configuration
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseInMemoryDatabase("ProductsDb"));
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddMediatR(Assembly.GetExecutingAssembly());
+
+var app = builder.Build();
+
+app.MapPost("/products", async (CreateProductCommand command, IMediator mediator) =>
+{
+    var product = await mediator.Send(command);
+    return Results.Created($"/products/{product.Id}", product);
+});
+
+app.MapGet("/products/{id}", async (int id, IMediator mediator) =>
+{
+    var product = await mediator.Send(new GetProductByIdQuery { Id = id });
+    return product is not null ? Results.Ok(product) : Results.NotFound();
+});
+
+app.Run();
+
+
+
+This implementation demonstrates how to apply the CQRS pattern using MediatR in a .NET Core Web API, 
+following Clean Architecture principles. By separating concerns into distinct layers—Domain, Application, Infrastructure, 
+and API—we achieve a modular, maintainable, and testable codebase.
